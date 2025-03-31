@@ -1,0 +1,94 @@
+name: run workflow
+on:
+  # Performed at 4:00, 12:00, and 18:00 Beijing time
+  schedule:
+    - cron: "0 20 * * *"  # UTC 20:00 = 北京时间 04:00
+    - cron: "0 4 * * *"   # UTC 04:00 = 北京时间 12:00
+    - cron: "0 10 * * *"  # UTC 10:00 = 北京时间 18:00
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.repository }}
+  cancel-in-progress: true
+
+env:
+  # time zone
+  TZ: Asia/Shanghai
+
+  # github access token
+  GIST_PAT: ${{ secrets.GIST_PAT }}
+
+  # github username and gist id, separated by '/'
+  GIST_LINK: ${{ secrets.GIST_LINK }}
+
+  # the url to the list of airports that you maintain yourself
+  # each line include domain, coupon and invitation code, the domain must be included, and the latter two items are optional
+  CUSTOMIZE_LINK: ${{ secrets.CUSTOMIZE_LINK }}
+
+  # include special protocols, such as vless hysteria2 and hysteria
+  ENABLE_SPECIAL_PROTOCOLS: ${{ vars.ENABLE_SPECIAL_PROTOCOLS }}
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Prepare
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+          architecture: "x64"
+          cache: "pip"
+
+      - name: Install
+        run: pip3 install -r requirements.txt
+
+      - name: Check
+        run: |
+          if [ -z "$GIST_PAT" ]; then
+              echo "Error: environment 'GIST_PAT' cannot be empty"
+              exit 1
+          fi
+
+          if [ -z "$GIST_LINK" ]; then
+              echo "Error: environment 'GIST_LINK' cannot be empty"
+              exit 1
+          fi
+
+          LINK_PARTS=$(echo "$GIST_LINK" | awk -F'/' 'NF==2 && $1!="" && $2!=""')
+          if [ -z "$LINK_PARTS" ]; then
+              echo "Error: environment 'GIST_LINK' is not valid, should be 'username/gist_id' format"
+              exit 1
+          fi
+
+      - name: Refresh
+        run: python -u subscribe/collect.py --all --refresh --overwrite --skip
+
+      - name: Create zip archive
+        run: |
+          mkdir -p artifacts
+          zip -r artifacts/data.zip data/
+
+      - name: Get current date
+        id: date
+        run: echo "DATE=$(date +'%Y-%m-%d_%H-%M')" >> $GITHUB_OUTPUT
+
+      - name: Create release and upload artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "release-${{ steps.date.outputs.DATE }}"
+          name: "Release ${{ steps.date.outputs.DATE }}"
+          body: "Automated proxy list release generated on ${{ steps.date.outputs.DATE }}"
+          files: |
+            artifacts/data.zip
+            data/v2ray.txt
+          generate_release_notes: false
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
