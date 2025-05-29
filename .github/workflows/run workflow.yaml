@@ -87,6 +87,7 @@ jobs:
           files: |
             artifacts/data.zip
             data/v2ray.txt
+            data/clash.yaml
           generate_release_notes: false
           draft: false
           prerelease: false
