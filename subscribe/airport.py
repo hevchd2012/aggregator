@@ -784,7 +784,7 @@ class AirPort:
                 config = None
                 try:
                     config = yaml.load(reader, Loader=yaml.SafeLoader)
-                except yaml.constructor.ConstructorError:
+                except (yaml.constructor.ConstructorError, yaml.parser.ParserError):
                     reader.seek(0, 0)
                     yaml.add_multi_constructor(
                         "str",
@@ -809,7 +809,7 @@ class AirPort:
             except yaml.scanner.ScannerError:
                 text = clean_text(document=text)
                 nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
-            except yaml.constructor.ConstructorError:
+            except (yaml.constructor.ConstructorError, yaml.parser.ParserError):
                 yaml.add_multi_constructor("str", lambda loader, suffix, node: str(node.value), Loader=yaml.SafeLoader)
                 nodes = yaml.load(text, Loader=yaml.FullLoader).get("proxies", [])
             except Exception as e:
